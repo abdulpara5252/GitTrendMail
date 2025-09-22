@@ -8,7 +8,10 @@ import { NonRetriableError } from "inngest";
 import { z } from "zod";
 
 import { sharedPostgresStorage } from "./storage";
-import { inngest, inngestServe } from "./inngest";
+import { inngest, inngestServe, registerCronWorkflow } from "./inngest";
+import { dailyGithubReportWorkflow } from "./workflows/dailyGithubReportWorkflow";
+import { githubTrendingTool } from "./tools/githubTrendingTool";
+import { emailReportTool } from "./tools/emailReportTool";
 
 class ProductionPinoLogger extends MastraLogger {
   protected logger: pino.Logger;
@@ -54,12 +57,12 @@ class ProductionPinoLogger extends MastraLogger {
 export const mastra = new Mastra({
   storage: sharedPostgresStorage,
   agents: {},
-  workflows: {},
+  workflows: { dailyGithubReportWorkflow },
   mcpServers: {
     allTools: new MCPServer({
       name: "allTools",
       version: "1.0.0",
-      tools: {},
+      tools: { githubTrendingTool, emailReportTool },
     }),
   },
   bundler: {
@@ -135,6 +138,10 @@ export const mastra = new Mastra({
           level: "info",
         }),
 });
+
+// Register the daily cron job for the GitHub trending report
+// Run daily at 9 AM (default timezone: America/Los_Angeles)
+registerCronWorkflow(`TZ=${process.env.SCHEDULE_CRON_TIMEZONE || 'America/Los_Angeles'} ${process.env.SCHEDULE_CRON_EXPRESSION || '0 9 * * *'}`, dailyGithubReportWorkflow);
 
 /*  Sanity check 1: Throw an error if there are more than 1 workflows.  */
 // !!!!!! Do not remove this check. !!!!!!
